@@ -1,0 +1,96 @@
+/**
+ * Gramatica del Proyecto Colchita. Tecnicatura en programacion de computadoras - tercer cuatrimestre - 2015.
+ */
+options
+{
+  STATIC = false;
+  MULTI= true;
+  VISITOR= true;
+}
+
+PARSER_BEGIN(Colchita)
+package ar.edu.ub.colchita.modelo.javacc;
+
+import ar.edu.ub.colchita.modelo.EscritorModelo;
+import ar.edu.ub.colchita.modelo.RetazoModelo;
+@SuppressWarnings("unused")
+
+public class Colchita {}
+
+PARSER_END(Colchita)
+
+TOKEN : /*RETAZOS*/
+{
+  < RETAZO1 : "retazo1" >{EscritorModelo.escribir("retazo1");}
+| < RETAZO2 : "retazo2" >{EscritorModelo.escribir("retazo2");}
+}
+
+TOKEN : /*OPERACIONES*/
+{
+  < GIRAR : "girar" >{EscritorModelo.escribir("girar");}
+| < COSER : "coser" >{EscritorModelo.escribir("coser");}
+}
+
+TOKEN : /* SEPARADORES */
+{
+  < LPAREN: "(" >{EscritorModelo.escribir("(");}
+| < RPAREN: ")" >{EscritorModelo.escribir(")");}
+| < COMA: "," >{EscritorModelo.escribir(",");}
+}
+
+SKIP :
+{
+  " "
+| "\r"
+| "\t"
+| "\n"
+}
+
+ASTPrincipal principal() #Principal :
+{}
+{
+  sentencias()
+  {return jjtThis;}
+}
+
+void sentencias() #void :
+{}
+{
+ (
+    declaracionLocal()
+ )*
+}
+
+void declaracionLocal() #void :
+{}
+{
+  girar()
+| coser()
+}
+
+ASTRetazo retazos() #Retazo:
+{Token t;}
+{
+  (	 t = < RETAZO1 > {jjtThis.value = "retazo1";}
+	|t = < RETAZO2 > {jjtThis.value = "retazo2";}    
+  )
+	{return jjtThis;}
+}
+
+
+ASTGirar girar() #Girar :
+{Token t;}
+{
+  (	  t = < GIRAR >< LPAREN >(declaracionLocal() | retazos())< RPAREN > {jjtThis.value = "girar";}
+  )
+  {return jjtThis;}
+}
+
+ASTCoser coser() #Coser:
+{Token t;}
+{
+  (
+	  t = < COSER >< LPAREN >(declaracionLocal() | retazos())< COMA >(declaracionLocal() | retazos())< RPAREN > {jjtThis.value = "coser";}
+  )
+  {return jjtThis;}
+}

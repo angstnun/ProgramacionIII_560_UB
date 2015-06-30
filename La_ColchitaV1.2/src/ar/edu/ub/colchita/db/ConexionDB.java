@@ -1,20 +1,27 @@
 package ar.edu.ub.colchita.db;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
 
+import ar.edu.ub.colchita.controlador.InformadorControlador;
+import ar.edu.ub.colchita.utilidades.BuscadorRutas;
 import ar.edu.ub.colchita.utilidades.Constantes;
 
 public class ConexionDB {
 	
 	private Connection conexion;
-	private String fuenteDB = Constantes.FUENTE_DB;
+	private String fuenteDB = Constantes.RUTA_DB;
 	private int tipoDB = Constantes.TIPO_DB;
 	private PreparedStatement preparedStatement = null;
 	private Statement statement = null;
@@ -27,30 +34,55 @@ public class ConexionDB {
 	private final int MYSQL = 0x0002;
 	private final int ACCESS = 0x0003;
 	
-	public ConexionDB() throws Exception {
-		SQLWarning warn;
-		try {
-			conexion = DriverManager.getConnection(
-				"jdbc:ucanaccess://src\\ar\\edu\\jdbc\\resources\\db\\BASE_DATOS.mdb","", "");
-		} catch (Exception e) {
-			throw new Exception("No se pudo establecer la conexion: ".concat(fuenteDB).concat(" : ")
-				.concat(e.getMessage()));
-		}
-		warn = conexion.getWarnings();
-		if (warn != null)
-			throw new Exception(this.dbWarning(warn));
-		this.getConnection().setAutoCommit(false);
+	public ConexionDB() {
+		this.setConexion();
+		this.setAutoCommit(Boolean.FALSE);
 	}
 	
-	public Connection getConnection() {
+	private void setConexion() {
+		try {
+			Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
+			Files.copy(BuscadorRutas.getRecursoComoInputStream(this.fuenteDB), new File(Constantes.RUTA_TEMP_DB).toPath(), StandardCopyOption.REPLACE_EXISTING);
+			this.conexion = DriverManager.getConnection(
+					"jdbc:ucanaccess://" + Constantes.RUTA_TEMP_DB , "", "");
+		} catch (SQLException e) {
+			InformadorControlador.mostrarMensaje("Error con el driver JDBC", "ConexionDB", 1);
+		} catch (IOException e) {
+			InformadorControlador.mostrarMensaje("Imposible crear la base de datos temporal", "ConexionDB", 1);
+		} catch (ClassNotFoundException e) {
+			InformadorControlador.mostrarMensaje("Error con el driver ucanaccess", "ConexionDB", 1);
+		}
+		this.hayAlertasConexion();
+	}
+	
+	public void setAutoCommit(Boolean b) {
+		try {
+			this.getConexion().setAutoCommit(b);
+		} catch (SQLException e) {
+			InformadorControlador.mostrarMensaje(e.getMessage(), "ConexionDB", 1);
+		}	
+	}
+	
+	private void hayAlertasConexion() {
+		SQLWarning warn;
+		try {
+			warn = conexion.getWarnings();
+			if (warn != null)
+				InformadorControlador.mostrarMensaje(this.advertenciasDB(warn), "Error en la Conexion", 1);
+		} catch (SQLException e) {
+			InformadorControlador.mostrarMensaje(e.getMessage(), "Error en la Conexion", 1);
+		}
+	}
+	
+	public Connection getConexion() {
 		return this.conexion;
 	}
 	
-	public void closeConnection() {
+	public void cerrarConexion() {
 		try {
-			this.getConnection().close();
+			this.getConexion().close();
 		} catch (Exception e) {
-			System.out.println("Error al cerrar la conexion : " + e.getMessage());
+			InformadorControlador.mostrarMensaje("Error al cerrar la conexion : " + e.getMessage(), "ConexionDB", 1);
 		};
 	}
 	
@@ -124,7 +156,7 @@ public class ConexionDB {
 			statement = conexion.createStatement();
 			resultSet = statement.executeQuery(query);
 		} catch (Exception e) {
-			throw new Exception(dbError(e, query));
+			throw new Exception(errorDB(e, query));
 		}
 		return resultSet;
 	}
@@ -136,7 +168,7 @@ public class ConexionDB {
 			if (statement != null)
 				statement.close();
 		} catch (Exception e) {
-			throw new Exception(dbError(e, "closeCursor"));
+			throw new Exception(errorDB(e, "closeCursor"));
 		} finally {
 			resultSet = null;
 			statement = null;
@@ -157,7 +189,7 @@ public class ConexionDB {
 			rsmd = rs.getMetaData();
 			numCols = rsmd.getColumnCount();
 		} catch (Exception e) {
-			throw new Exception(dbError(e, query));
+			throw new Exception(errorDB(e, query));
 		}
 		result = new ArrayList<Object>();
 		try {
@@ -170,12 +202,12 @@ public class ConexionDB {
 			rs.close();
 			stmt.close();
 		} catch (Exception e) {
-			throw new Exception(dbError(e, query));
+			throw new Exception(errorDB(e, query));
 		}
 		return result;
 	}
 	
-	public String Query1(String query) throws Exception {
+	public String QuerySoloPrimero(String query) throws Exception {
 		ArrayList<Object> l, f;
 		int i;
 		String s;
@@ -205,7 +237,7 @@ public class ConexionDB {
 			stmt = conexion.createStatement();
 			rows = stmt.executeUpdate("BEGIN " + query + "END;");
 		} catch (Exception e) {
-			throw new Exception(dbError(e, query));
+			throw new Exception(errorDB(e, query));
 		}
 		try {
 			if (stmt != null)
@@ -224,7 +256,7 @@ public class ConexionDB {
 			stmt = conexion.createStatement();
 			rows = stmt.executeUpdate(query);
 		} catch (Exception e) {
-			throw new Exception(dbError(e, query));
+			throw new Exception(errorDB(e, query));
 		}
 		try {
 			if (stmt != null)
@@ -240,7 +272,7 @@ public class ConexionDB {
 		try {
 			conexion.commit();
 		} catch (Exception e) {
-			throw new Exception(dbError(e, "Commit"));
+			throw new Exception(errorDB(e, "Commit"));
 		}
 	}
 	
@@ -272,47 +304,40 @@ public class ConexionDB {
 		return existe;
 	}
 	
-	public ArrayList<Object> listaObjetosUnion(String borrado, String filtro, String orden,
+	public ArrayList<Object> listaObjetosUnion(String filtro, String orden,
 			boolean ordenInverso, long desde, long cant, ListaCallback cb) throws Exception {
-		return listaObjetos(borrado, filtro, orden, ordenInverso, desde, cant, cb);
+		return listaObjetos(filtro, orden, ordenInverso, desde, cant, cb);
 	}
 	
-	public ArrayList<Object> listaObjetos(String borrado, String filtro, String orden, boolean ordenInverso,
+	public ArrayList<Object> listaObjetos(String filtro, String orden, boolean ordenInverso,
 			long desde, long cant, ListaCallback cb) throws Exception {
 		String orderBy = "";
 		String filterBy = "";
 		String limitBy = "";
 		if (orden != null) {
-			if (orden != null) {
-				orderBy = "ORDER BY " + orden;
-				if (ordenInverso)
-					orderBy += " DESC";
-			}
+			orderBy = "ORDER BY " + orden;
+			if (ordenInverso)
+				orderBy += " DESC";
 		}
-		if (borrado != null || filtro != null)
-			filterBy = " WHERE ";
-		if (borrado != null)
-			filterBy = filterBy + borrado + " is null ";
-		if (filtro != null) {
-			if (borrado != null)
-				filterBy = filterBy + " AND (" + filtro + ")";
-			else
-				filterBy = filterBy + filtro;
-		}
-		valorDesde = -1;
-		valorHasta = -1;
-		valorActual = 0;
+		if (filtro != null)
+			filterBy = " WHERE " + filtro;
+		this.valorDesde = -1;
+		this.valorHasta = -1;
+		this.valorActual = 0;
 		if (cant > 0 && desde >= 0)
 			limitBy = limite(desde, cant);
-		return (doFirst(cb, filterBy, orderBy, limitBy));
+		return (hazPrimero(cb, filterBy, orderBy, limitBy));
 	}
 	
-	private ArrayList<Object> doFirst(ListaCallback cb, String filterBy, String orderBy, String limitBy)
+	private ArrayList<Object> hazPrimero(ListaCallback cb, String filterBy, String orderBy, String limitBy)
 			throws Exception {
 		ArrayList<Object> vector = new ArrayList<Object>();
-		String s1, s2;
-		s1 = " " + filterBy;
-		s2 = s1 + " " + orderBy + " " + limitBy;
+		String s1 = "";
+		String s2 = "";
+		if(filterBy.length() > 0)
+			s1 = " " + filterBy;
+		if(orderBy.length() > 0 && limitBy.length() > 0)
+			s2 = s1 + " " + orderBy + " " + limitBy;
 		try {
 			setCount(cb, "SELECT count(1) FROM " + cb.listaTabla() + s1);
 			listaObjetos1("SELECT " + cb.listaCampos() + " FROM " + cb.listaTabla() + s2, vector, cb);
@@ -357,6 +382,13 @@ public class ConexionDB {
 		return existe;
 	}
 	
+	/**
+	 * A partir de un id y un objeto ListaCallback 
+	 * @param condId
+	 * @param cb
+	 * @throws Exception
+	 */
+	
 	public void selectObjeto(String condId, ListaCallback cb) throws Exception {
 		boolean existe = false;
 		String s1, s2;
@@ -367,7 +399,12 @@ public class ConexionDB {
 			throw new Exception("El objeto no existe: Tabla::" + cb.listaTabla() + ", Condicion::" + condId);
 	}
 	
-	public String Insert(String tabla, String pCampos, String pValues) throws Exception {
+	/**
+	 * <b><u>Metodo <code>insert</code>.</u></b>
+	 * <p>
+	 * METODO DE LAST ID PARA ACCESS
+	 */
+	public String insert(String tabla, String pCampos, String pValues) throws Exception {
 		int i;
 		String values;
 		String id = "";
@@ -404,7 +441,11 @@ public class ConexionDB {
 		return id;
 	}
 	
-	/*** Oracle ***/
+	/**
+	 * <b><u>Metodo <code>getLastId</code>.</u></b>
+	 * <p>
+	 * METODO DE LAST ID PARA ORACLE
+	 */
 	public String getNextId(String tabla) throws Exception {
 		String ret;
 		try {
@@ -418,7 +459,11 @@ public class ConexionDB {
 		return ret;
 	}
 	
-	/*** MySQL ***/
+	/**
+	 * <b><u>Metodo <code>getLastId</code>.</u></b>
+	 * <p>
+	 * METODO DE LAST ID PARA SQL
+	 */
 	public String getLastId() throws Exception {
 		String ret;
 		try {
@@ -432,7 +477,11 @@ public class ConexionDB {
 		return ret;
 	}
 	
-	/*** ACCESS ***/
+	/**
+	 * <b><u>Metodo <code>getLastId</code>.</u></b>
+	 * <p>
+	 * METODO DE LAST ID PARA ACCESS
+	 */
 	public String getLastId(String tabla) throws Exception {
 		String ret;
 		try {

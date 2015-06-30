@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+<Properties>
+    <Property name="log-path">${sys:user.home}}/logs</Property>
+</Properties>
+  <Appenders>
+    <RollingFile name="info-log" fileName="${log-path}/colchita-info.log" filePattern="${log-path}/colchita-info-%i.log">
+		<PatternLayout>
+			<pattern>[%-4level] %d{yyyy-MMM-dd HH:mm:ss} [%t] Colchita: %msg%n</pattern>
+		</PatternLayout>
+		<Policies>
+			<SizeBasedTriggeringPolicy size="200 KB" />
+		</Policies>
+		<DefaultRolloverStrategy max="1"/>
+	</RollingFile>
+    <RollingFile name="error-log" fileName="${log-path}/errorlogs/colchita-error.log" filePattern="${log-path}/errorlogs/colchita-error-%i.log">
+		<PatternLayout>
+			<pattern>[%-5level] %d{yyyy-MMM-dd HH:mm:ss} [%t] Colchita: %msg%n</pattern>
+		</PatternLayout>
+		<Policies>
+			<SizeBasedTriggeringPolicy size="1 MB" />
+		</Policies>
+		<DefaultRolloverStrategy max="1"/>
+	</RollingFile>
+	<Console name="STDOUT" target="SYSTEM_OUT">
+      <PatternLayout pattern="[%t] %m%n"/>
+    </Console>
+  </Appenders>
+  <Loggers>
+    <Logger name="ColchitaInfoLogger" level="info" additivity="false">
+    	<AppenderRef ref="info-log"/>
+    </Logger>
+    <Logger name="ColchitaErrorLogger" level="error" additivity="false">
+    	<AppenderRef ref="error-log"/>
+    </Logger>
+    <Root level="trace">
+      <AppenderRef ref="error-log"/>
+    </Root>
+  </Loggers>
+</Configuration>
